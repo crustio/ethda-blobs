@@ -1,104 +1,224 @@
+import { resolve } from 'path';
 import { ethers } from 'ethers';
-/* eslint-disable node/no-extraneous-import */
-import { TypedDataSigner } from '@ethersproject/abstract-signer';
+import {
+  loadTrustedSetup,
+  blobToKzgCommitment,
+  computeBlobKzgProof,
+} from 'c-kzg';
+import { Common } from '@ethereumjs/common';
+import { BlobEIP4844Transaction } from '@ethereumjs/tx';
+import {
+  delay,
+  commitmentsToVersionedHashes,
+  parseBigintValue,
+  getBytes,
+} from './utils';
 
-const BYTES_PER_FIELD_ELEMENT = 32;
-const FIELD_ELEMENTS_PER_BLOB = 4096;
-const BLOB_SIZE = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_BLOB; // 128 KB per Blob
-
-const USEFUL_BYTES_PER_BLOB = 32 * FIELD_ELEMENTS_PER_BLOB;
-const MAX_BLOBS_PER_TX = 2; // 2 Blobs per TX
-const MAX_USEFUL_BYTES_PER_TX = USEFUL_BYTES_PER_BLOB * MAX_BLOBS_PER_TX - 1; // 255 KB per TX
+const defaultAxios = require('axios');
+const axios = defaultAxios.create({
+  timeout: 30000,
+});
 
 export class BlobTransaction {
+  private _jsonRpc: string;
   private _provider: ethers.providers.JsonRpcProvider;
-  private _signer: ethers.Signer & TypedDataSigner;
+  private _privateKey: string;
+  private _wallet: ethers.Wallet;
+  private _chainId: string;
 
-  constructor(
-    provider: ethers.providers.JsonRpcProvider,
-    signer?: ethers.Signer & TypedDataSigner
-  ) {
-    this._provider = provider;
-    this._signer = signer;
+  constructor(jsonRpc: string, privateKey: string) {
+    this._jsonRpc = jsonRpc;
+    this._provider = new ethers.providers.JsonRpcProvider(jsonRpc);
+    this._privateKey = privateKey;
+    this._wallet = new ethers.Wallet(privateKey, this._provider);
+
+    const SETUP_FILE_PATH = resolve(__dirname, 'lib', 'trusted_setup.txt');
+    console.log(SETUP_FILE_PATH);
+    loadTrustedSetup(SETUP_FILE_PATH);
   }
 
-  /**
-   * Ref: https://github.com/asn-d6/blobbers/blob/packing_benchmarks/src/packer_naive.rs
-   *
-   * @param data
-   * @returns
-   */
-  public getBlobs(data: string) {
-    const buffer = Buffer.from(data, 'binary');
-    const len = Buffer.byteLength(buffer);
-    if (len === 0) {
-      throw Error('Empty data');
-    }
-    if (len > MAX_USEFUL_BYTES_PER_TX) {
-      throw Error('Too large data for a Blob TX');
-    }
+  async sendRpcCall(method, parameters) {
+    try {
+      const response = await axios({
+        method: 'POST',
+        url: this._jsonRpc,
+        data: {
+          jsonrpc: '2.0',
+          method: method,
+          params: parameters,
+          id: 67,
+        },
+      });
 
-    const blobs_len = Math.ceil(len / USEFUL_BYTES_PER_BLOB);
-    const pdata = this._getPadded(buffer, blobs_len);
-
-    const blobs = [];
-    for (let i = 0; i < blobs_len; i++) {
-      const chunk = pdata.subarray(
-        i * USEFUL_BYTES_PER_BLOB,
-        (i + 1) * USEFUL_BYTES_PER_BLOB
-      );
-      const blob = this._getBlob(chunk);
-      blobs.push(blob);
+      // console.log('send response', response.data);
+      const returnedValue = response.data.result;
+      if (returnedValue === '0x') {
+        return null;
+      }
+      return returnedValue;
+    } catch (error) {
+      console.log('send error', error);
+      return null;
     }
-
-    return blobs;
   }
 
-  public async send({
-    data,
-    accountAddress,
-  }: {
-    data: string;
-    accountAddress: string;
-  }) {
-    const blobs = this.getBlobs(data);
-    console.log('number of blobs is ' + blobs.length);
-
-    const blobshex = blobs.map((x) => `0x${x.toString('hex')}`);
-    const txData = {
-      from: accountAddress,
-      to: '0x',
-      data: '0x',
-      chainId: 0x1, // TODO:
-      blobs: blobshex,
-    };
-    const gas = await this._provider.estimateGas(txData);
-    console.log(`Estiamted Gas: ${gas}`);
-
-    const signer = this._signer || this._provider.getSigner(accountAddress);
-    console.log('Sending Blob TX');
-    const tx = await signer.sendTransaction(txData);
-    await tx.wait();
-    console.log('Blob TX sent');
+  async sendRawTransaction(param) {
+    return await this.sendRpcCall('eth_sendRawTransaction', [param]);
   }
 
-  private _getBlob(data) {
-    const blob = Buffer.alloc(BLOB_SIZE, 'binary');
-    for (let i = 0; i < FIELD_ELEMENTS_PER_BLOB; i++) {
-      const chunk = Buffer.alloc(32, 'binary');
-      chunk.fill(data.subarray(i * 31, (i + 1) * 31), 0, 31);
-      blob.fill(chunk, i * 32, (i + 1) * 32);
+  async getChainId() {
+    if (this._chainId == null) {
+      this._chainId = await this.sendRpcCall('eth_chainId', []);
+    }
+    return this._chainId;
+  }
+
+  async getNonce() {
+    return await this._wallet.getTransactionCount('pending');
+  }
+
+  async getFee() {
+    return await this._provider.getFeeData();
+  }
+
+  async estimateGas(params) {
+    return await this.sendRpcCall('eth_estimateGas', [params]);
+  }
+
+  async sendTx(blobs, tx) {
+    const chain = await this.getChainId();
+
+    /* eslint-disable prefer-const */
+    let {
+      chainId,
+      nonce,
+      to,
+      value,
+      data,
+      maxPriorityFeePerGas,
+      maxFeePerGas,
+      gasLimit,
+      maxFeePerBlobGas,
+    } = tx;
+    if (chainId == null) {
+      chainId = chain;
+    } else {
+      chainId = parseBigintValue(chainId);
+      if (ethers.utils.isHexString(chainId)) {
+        chainId = parseInt(chainId, 16);
+      }
+      if (chainId !== parseInt(chain, 16)) {
+        throw Error('invalid network id');
+      }
     }
 
-    return blob;
+    if (nonce == null) {
+      nonce = await this.getNonce();
+    }
+
+    value = value == null ? '0x0' : parseBigintValue(value);
+
+    if (gasLimit == null) {
+      const params = { from: this._wallet.address, to, data, value };
+      gasLimit = await this.estimateGas(params);
+      if (gasLimit == null) {
+        throw Error('estimateGas: execution reverted');
+      }
+    } else {
+      gasLimit = parseBigintValue(gasLimit);
+    }
+
+    if (maxFeePerGas == null) {
+      const fee = await this.getFee();
+      maxPriorityFeePerGas = fee.maxPriorityFeePerGas.toHexString();
+      maxFeePerGas = fee.maxFeePerGas.toHexString();
+    } else {
+      maxFeePerGas = parseBigintValue(maxFeePerGas);
+      maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas);
+    }
+
+    // TODO
+    maxFeePerBlobGas =
+      maxFeePerBlobGas == null
+        ? 100_000_000_000
+        : parseBigintValue(maxFeePerBlobGas);
+
+    // blobs
+    const commitments = [];
+    const proofs = [];
+    const versionedHashes = [];
+    for (let i = 0; i < blobs.length; i++) {
+      commitments.push(blobToKzgCommitment(blobs[i]));
+      proofs.push(computeBlobKzgProof(blobs[i], commitments[i]));
+      versionedHashes.push(commitmentsToVersionedHashes(commitments[i]));
+    }
+
+    // send
+    const common = Common.custom(
+      {
+        name: 'custom-chain',
+        networkId: chainId,
+        chainId: chainId,
+      },
+      {
+        baseChain: 1,
+        eips: [1559, 3860, 4844],
+      }
+    );
+    const unsignedTx = new BlobEIP4844Transaction(
+      {
+        chainId,
+        nonce,
+        to: '0x0000000000000000000000000000000000000000',
+        value,
+        data,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        gasLimit: gasLimit,
+        maxFeePerBlobGas,
+        blobVersionedHashes: versionedHashes,
+        blobs,
+        kzgCommitments: commitments,
+        kzgProofs: proofs,
+      },
+      { common }
+    );
+
+    const pk = getBytes('0x' + this._privateKey);
+    const signedTx = unsignedTx.sign(pk);
+    console.log('signedTx', signedTx);
+
+    const rawData = signedTx.serializeNetworkWrapper();
+
+    const hex = Buffer.from(rawData).toString('hex');
+    return await this.sendRawTransaction('0x' + hex);
   }
 
-  private _getPadded(data, blobs_len) {
-    const pdata = Buffer.alloc(blobs_len * USEFUL_BYTES_PER_BLOB);
-    const datalen = Buffer.byteLength(data);
-    pdata.fill(data, 0, datalen);
-    // TODO: if data already fits in a pad, then ka-boom
-    pdata[datalen] = 0x80;
-    return pdata;
+  async isTransactionMined(transactionHash) {
+    const txReceipt = await this._provider.getTransactionReceipt(
+      transactionHash
+    );
+    if (txReceipt && txReceipt.blockNumber) {
+      return txReceipt;
+    }
+    return null;
+  }
+
+  async getTxReceipt(transactionHash) {
+    let txReceipt;
+    while (!txReceipt) {
+      txReceipt = await this.isTransactionMined(transactionHash);
+      if (txReceipt) break;
+      await delay(5000);
+    }
+    return txReceipt;
+  }
+
+  getBlobHash(blob) {
+    const commit = blobToKzgCommitment(blob);
+    const localHash = commitmentsToVersionedHashes(commit);
+    const hash = new Uint8Array(32);
+    hash.set(localHash.subarray(0, 32 - 8));
+    return ethers.utils.hexlify(hash);
   }
 }

@@ -1,4 +1,4 @@
 export enum Network {
-  DencunDevnet9 = 'dencun-devnet-9',
+  DencunDevnet11 = 'dencun-devnet-11',
   EthDADevnet = 'ethda-devnet',
 }

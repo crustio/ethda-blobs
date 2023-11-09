@@ -1,10 +1,28 @@
-import { Alice, provider } from './constants';
-import { BlobTransaction } from '../src';
+import { configs } from './configs';
+import { jsonRpc } from './constants';
+import { BlobTransaction, EncodeBlobs } from '../src';
 
 describe('Blobs', () => {
-  it('Blob encoding and Blob TX works', async () => {
-    const blobsTrans = new BlobTransaction(provider, Alice.signer);
-    const blobs = await blobsTrans.getBlobs('Hello World');
-    console.log(blobs);
+  it('Blob TX works', async () => {
+    const blobs = EncodeBlobs(Buffer.from('Hello World', 'utf-8'));
+
+    const blobTrans = new BlobTransaction(
+      jsonRpc,
+      configs.accounts.aliceSecret
+    );
+    const blobLength = blobs.length;
+    for (let i = 0; i < blobLength; i += 2) {
+      let blobArr: Uint8Array[] = [];
+      if (i + 1 < blobLength) {
+        blobArr = [blobs[i], blobs[i + 1]];
+      } else {
+        blobArr = [blobs[i]];
+      }
+
+      const hash = await blobTrans.sendTx(blobArr, {});
+      console.log(hash);
+      const txReceipt = await blobTrans.getTxReceipt(hash);
+      console.log(txReceipt);
+    }
   }, 600000 /*10 minutes timeout*/);
 });
