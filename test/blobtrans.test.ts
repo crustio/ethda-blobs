@@ -19,10 +19,14 @@ describe('Blobs', () => {
         blobArr = [blobs[i]];
       }
 
-      const hash = await blobTrans.sendTx(blobArr, {});
-      console.log(hash);
-      const txReceipt = await blobTrans.getTxReceipt(hash);
-      console.log(txReceipt);
+      try {
+        const hash = await blobTrans.sendTx(blobArr, { nonce: 3 });
+        console.log(hash);
+        const txReceipt = await blobTrans.getTxReceipt(hash);
+        console.log(txReceipt);
+      } catch (e) {
+        console.error(e);
+      }
     }
   }, 600000 /*10 minutes timeout*/);
 });

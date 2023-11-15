@@ -14,7 +14,7 @@ import {
   getBytes,
 } from './utils';
 
-const defaultAxios = require('axios');
+import defaultAxios from "axios";
 const axios = defaultAxios.create({
   timeout: 30000,
 });
@@ -38,8 +38,9 @@ export class BlobTransaction {
   }
 
   async sendRpcCall(method, parameters) {
+    let response;
     try {
-      const response = await axios({
+      response = await axios({
         method: 'POST',
         url: this._jsonRpc,
         data: {
@@ -49,17 +50,21 @@ export class BlobTransaction {
           id: 67,
         },
       });
-
-      // console.log('send response', response.data);
-      const returnedValue = response.data.result;
-      if (returnedValue === '0x') {
-        return null;
-      }
-      return returnedValue;
     } catch (error) {
       console.log('send error', error);
       return null;
     }
+
+    console.log('send response', response.data);
+    const returnedValue = response.data.result;
+    if (returnedValue === '0x') {
+      return null;
+    }
+    if (response.data.error) {
+      throw new Error(response.data.error);
+    }
+
+    return returnedValue;
   }
 
   async sendRawTransaction(param) {
@@ -130,17 +135,21 @@ export class BlobTransaction {
 
     if (maxFeePerGas == null) {
       const fee = await this.getFee();
-      maxPriorityFeePerGas = fee.maxPriorityFeePerGas.toHexString();
-      maxFeePerGas = fee.maxFeePerGas.toHexString();
+      maxPriorityFeePerGas = fee.maxPriorityFeePerGas.mul(20).toHexString();
+      maxFeePerGas = fee.maxFeePerGas.mul(20).toHexString();
+      console.log(
+        fee.maxFeePerGas.toString(),
+        fee.maxPriorityFeePerGas.toString()
+      );
     } else {
-      maxFeePerGas = parseBigintValue(maxFeePerGas);
-      maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas);
+      maxFeePerGas = parseBigintValue(maxFeePerGas * 20);
+      maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas * 20);
     }
 
     // TODO
     maxFeePerBlobGas =
       maxFeePerBlobGas == null
-        ? 100_000_000_000
+        ? 2000_000_000_000
         : parseBigintValue(maxFeePerBlobGas);
 
     // blobs
@@ -168,7 +177,7 @@ export class BlobTransaction {
     const unsignedTx = new BlobEIP4844Transaction(
       {
         chainId,
-        nonce,
+        nonce: nonce,
         to: '0x0000000000000000000000000000000000000000',
         value,
         data,
@@ -186,7 +195,7 @@ export class BlobTransaction {
 
     const pk = getBytes('0x' + this._privateKey);
     const signedTx = unsignedTx.sign(pk);
-    console.log('signedTx', signedTx);
+    // console.log('signedTx', signedTx);
 
     const rawData = signedTx.serializeNetworkWrapper();
 
