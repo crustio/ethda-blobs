@@ -20,7 +20,10 @@ describe('Blobs', () => {
       }
 
       try {
-        const hash = await blobTrans.sendTx(blobArr, { nonce: 3 });
+        const hash = await blobTrans.sendTx(blobArr, {
+          maxPriorityFeePerGas: 7000000000n,
+          maxFeePerGas: 7000000020n,
+        });
         console.log(hash);
         const txReceipt = await blobTrans.getTxReceipt(hash);
         console.log(txReceipt);

@@ -135,15 +135,15 @@ export class BlobTransaction {
 
     if (maxFeePerGas == null) {
       const fee = await this.getFee();
-      maxPriorityFeePerGas = fee.maxPriorityFeePerGas.mul(20).toHexString();
-      maxFeePerGas = fee.maxFeePerGas.mul(20).toHexString();
+      maxPriorityFeePerGas = fee.maxPriorityFeePerGas.toHexString();
+      maxFeePerGas = fee.maxFeePerGas.toHexString();
       console.log(
         fee.maxFeePerGas.toString(),
         fee.maxPriorityFeePerGas.toString()
       );
     } else {
-      maxFeePerGas = parseBigintValue(maxFeePerGas * 20);
-      maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas * 20);
+      maxFeePerGas = parseBigintValue(maxFeePerGas);
+      maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas);
     }
 
     // TODO
