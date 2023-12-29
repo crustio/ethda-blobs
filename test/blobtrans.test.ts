@@ -1,11 +1,22 @@
 import { configs } from './configs';
 import { jsonRpc } from './constants';
 import { BlobTransaction, EncodeBlobs } from '../src';
+import {ethers} from "ethers";
 
 describe('Blobs', () => {
   it('Blob TX works', async () => {
-    const blobs = EncodeBlobs(Buffer.from('Hello World', 'utf-8'));
+    let longString = 'a';
 
+    // for (let i = 0; i < 128 * 1024 *31 / 32 + 1; i++) {
+    //   longString += 'a';
+    // }
+
+    const blobs = EncodeBlobs(Buffer.from(longString, 'utf-8'));
+    console.log(blobs);
+    console.log(blobs.length);
+    let iface = new ethers.utils.Interface(["function add()"])
+    const data = iface.encodeFunctionData("add")
+    console.log("input", data)
     const blobTrans = new BlobTransaction(
       jsonRpc,
       configs.accounts.aliceSecret
@@ -23,6 +34,9 @@ describe('Blobs', () => {
         const hash = await blobTrans.sendTx(blobArr, {
           maxPriorityFeePerGas: 7000000000n,
           maxFeePerGas: 7000000020n,
+          value: 100000000000000000n,
+          // data: '0x4f2be91f',
+          // chainId: 1001,
         });
         console.log(hash);
         const txReceipt = await blobTrans.getTxReceipt(hash);

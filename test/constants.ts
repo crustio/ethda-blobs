@@ -7,6 +7,7 @@ export const jsonRpc = (() => {
   switch (configs.network) {
     case Network.DencunDevnet11:
     default:
-      return 'https://rpc.dencun-devnet-11.ethpandaops.io';
+      // return 'https://rpc.dencun-devnet-12.ethpandaops.io';
+      return 'https://rpc.ethda.io';
   }
 })();

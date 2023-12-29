@@ -178,7 +178,7 @@ export class BlobTransaction {
       {
         chainId,
         nonce: nonce,
-        to: '0x0000000000000000000000000000000000000000',
+        to,
         value,
         data,
         maxPriorityFeePerGas,
@@ -195,7 +195,6 @@ export class BlobTransaction {
 
     const pk = getBytes('0x' + this._privateKey);
     const signedTx = unsignedTx.sign(pk);
-    // console.log('signedTx', signedTx);
 
     const rawData = signedTx.serializeNetworkWrapper();
 
