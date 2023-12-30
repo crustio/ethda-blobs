@@ -1,3 +1,18 @@
+# Usage
+
+```typescript
+const content = "abc...."
+const blobs = EncodeBlobs(Buffer.from(content, 'utf-8'));
+try {
+    const hash = await blobTrans.sendTx(blobArr, {
+        // value: 100000000000000000n,
+    });
+    const txReceipt = await blobTrans.getTxReceipt(hash);
+} catch (e) {
+    console.error(e);
+}
+```
+
 # Publish to npmjs
 
 ```sh

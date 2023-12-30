@@ -1,13 +1,6 @@
-import { Network } from './types';
-import { configs } from './configs';
+import {Network} from './types';
 
-export const ERC20_TOKEN_DECIMAL = 18;
-
-export const jsonRpc = (() => {
-  switch (configs.network) {
-    case Network.DencunDevnet11:
-    default:
-      // return 'https://rpc.dencun-devnet-12.ethpandaops.io';
-      return 'https://rpc.ethda.io';
-  }
-})();
+export const RPC_URLS = {
+  [Network.DencunDevnet12]: 'https://rpc.dencun-devnet-12.ethpandaops.io',
+  [Network.EthDADevnet]: 'https://rpc.ethda.io',
+}

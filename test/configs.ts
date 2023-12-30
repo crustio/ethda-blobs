@@ -12,7 +12,7 @@ const getNetwork = (): Network => {
   switch (network) {
     case 'decun-devnet-9':
     default:
-      return Network.DencunDevnet11;
+      return Network.DencunDevnet12;
   }
 };
 

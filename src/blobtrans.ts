@@ -12,9 +12,9 @@ import {
   commitmentsToVersionedHashes,
   parseBigintValue,
   getBytes,
-} from './utils';
+} from '@/src/utils';
 
-import defaultAxios from "axios";
+import defaultAxios from 'axios';
 const axios = defaultAxios.create({
   timeout: 30000,
 });
@@ -33,7 +33,6 @@ export class BlobTransaction {
     this._wallet = new ethers.Wallet(privateKey, this._provider);
 
     const SETUP_FILE_PATH = resolve(__dirname, 'lib', 'trusted_setup.txt');
-    console.log(SETUP_FILE_PATH);
     loadTrustedSetup(SETUP_FILE_PATH);
   }
 
@@ -72,7 +71,7 @@ export class BlobTransaction {
   }
 
   async getChainId() {
-    if (this._chainId == null) {
+    if (!this._chainId) {
       this._chainId = await this.sendRpcCall('eth_chainId', []);
     }
     return this._chainId;
@@ -105,7 +104,7 @@ export class BlobTransaction {
       gasLimit,
       maxFeePerBlobGas,
     } = tx;
-    if (chainId == null) {
+    if (!chainId) {
       chainId = chain;
     } else {
       chainId = parseBigintValue(chainId);
@@ -117,23 +116,23 @@ export class BlobTransaction {
       }
     }
 
-    if (nonce == null) {
+    if (!nonce) {
       nonce = await this.getNonce();
     }
 
-    value = value == null ? '0x0' : parseBigintValue(value);
+    value = !value ? '0x0' : parseBigintValue(value);
 
-    if (gasLimit == null) {
+    if (!gasLimit) {
       const params = { from: this._wallet.address, to, data, value };
       gasLimit = await this.estimateGas(params);
-      if (gasLimit == null) {
+      if (!gasLimit) {
         throw Error('estimateGas: execution reverted');
       }
     } else {
       gasLimit = parseBigintValue(gasLimit);
     }
 
-    if (maxFeePerGas == null) {
+    if (!maxFeePerGas) {
       const fee = await this.getFee();
       maxPriorityFeePerGas = fee.maxPriorityFeePerGas.toHexString();
       maxFeePerGas = fee.maxFeePerGas.toHexString();
@@ -147,10 +146,9 @@ export class BlobTransaction {
     }
 
     // TODO
-    maxFeePerBlobGas =
-      maxFeePerBlobGas == null
-        ? 2000_000_000_000
-        : parseBigintValue(maxFeePerBlobGas);
+    maxFeePerBlobGas = !maxFeePerBlobGas
+      ? 2000_000_000_000
+      : parseBigintValue(maxFeePerBlobGas);
 
     // blobs
     const commitments = [];

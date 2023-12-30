@@ -1,24 +1,20 @@
-import { configs } from './configs';
-import { jsonRpc } from './constants';
-import { BlobTransaction, EncodeBlobs } from '../src';
-import {ethers} from "ethers";
+import { describe, it } from '@jest/globals';
+import { configs } from '@/test/configs';
+import { BlobTransaction, EncodeBlobs, Network } from '../src';
+import { ethers } from 'ethers';
+import { RPC_URLS } from '@/test/constants';
 
 describe('Blobs', () => {
   it('Blob TX works', async () => {
-    let longString = 'a';
+    const longString = 'a';
 
     // for (let i = 0; i < 128 * 1024 *31 / 32 + 1; i++) {
     //   longString += 'a';
     // }
 
     const blobs = EncodeBlobs(Buffer.from(longString, 'utf-8'));
-    console.log(blobs);
-    console.log(blobs.length);
-    let iface = new ethers.utils.Interface(["function add()"])
-    const data = iface.encodeFunctionData("add")
-    console.log("input", data)
     const blobTrans = new BlobTransaction(
-      jsonRpc,
+      RPC_URLS[Network.EthDADevnet],
       configs.accounts.aliceSecret
     );
     const blobLength = blobs.length;
