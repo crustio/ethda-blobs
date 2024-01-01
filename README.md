@@ -1,16 +1,19 @@
 # Usage
 
+## Install
+```bash
+npm install @ethda/blobs
+```
+
+## Demo
 ```typescript
-const content = "abc...."
+import { BlobTransaction, EncodeBlobs } from '@ethda/blobs';
+
+const content = 'abc....';
 const blobs = EncodeBlobs(Buffer.from(content, 'utf-8'));
-try {
-    const hash = await blobTrans.sendTx(blobArr, {
-        // value: 100000000000000000n,
-    });
-    const txReceipt = await blobTrans.getTxReceipt(hash);
-} catch (e) {
-    console.error(e);
-}
+const blobTrans = new BlobTransaction('https://rpc.ethda.io', '<private_key>');
+const hash = await blobTrans.sendTx(blobs)
+const receipt = await blobTrans.getTxReceipt(hash)
 ```
 
 # Publish to npmjs

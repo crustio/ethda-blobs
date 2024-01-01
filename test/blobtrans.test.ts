@@ -27,9 +27,8 @@ describe('Blobs', () => {
 
       try {
         const hash = await blobTrans.sendTx(blobArr, {
-          maxPriorityFeePerGas: 7000000000n,
-          maxFeePerGas: 7000000020n,
-          value: 1000000000000000000n,
+          // maxPriorityFeePerGas: 7000000000n,
+          // value: 1000000000000000000n,
           // data: '0x4f2be91f',
           // chainId: 1001,
         });

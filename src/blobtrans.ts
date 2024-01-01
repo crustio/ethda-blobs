@@ -129,31 +129,20 @@ export class BlobTransaction {
       nonce = await this.getNonce();
     }
 
-    value = !value ? '0x0' : parseBigintValue(value);
-
-    if (!maxFeePerGas) {
-      const params = { from: this._wallet.address, to, data, value };
-      // gasLimit = await this.estimateGas(params);
-      maxFeePerGas = await this.suggestGasPrice();
-      if (!maxFeePerGas) {
-        throw Error('estimateGas: execution reverted');
-      }
-    } else {
-      maxFeePerGas = parseBigintValue(maxFeePerGas);
-    }
+    value = !value ? '0x' : parseBigintValue(value);
 
     // if (!maxFeePerGas) {
-    //   const fee = await this.getFee();
-    //   maxPriorityFeePerGas = fee.maxPriorityFeePerGas.toHexString();
-    //   maxFeePerGas = fee.maxFeePerGas.toHexString();
-    //   console.log(
-    //     fee.maxFeePerGas.toString(),
-    //     fee.maxPriorityFeePerGas.toString()
-    //   );
+    //   const params = { from: this._wallet.address, to, data, value };
+    //   // gasLimit = await this.estimateGas(params);
+    //   maxFeePerGas = await this.suggestGasPrice();
+    //   if (!maxFeePerGas) {
+    //     throw Error('estimateGas: execution reverted');
+    //   }
     // } else {
     //   maxFeePerGas = parseBigintValue(maxFeePerGas);
-    //   maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas);
     // }
+
+    maxFeePerGas = 1000000000n;
 
     // TODO
     maxFeePerBlobGas = !maxFeePerBlobGas
@@ -182,6 +171,7 @@ export class BlobTransaction {
   }
 
   async sendTx(blobs, tx) {
+    console.log('receive', tx);
     /* eslint-disable prefer-const */
     let {
       chainId,
@@ -217,30 +207,30 @@ export class BlobTransaction {
     );
     console.log(chainId);
 
-    // maxFeePerGas = 0x3b9aca00;
-    const unsignedLegacyTx = new LegacyTransaction(
-      {
-        nonce,
-        gasPrice: maxFeePerGas,
-        gasLimit,
-        to,
-        value,
-        data,
-        v: 2002 + 35,
-      },
-      { common }
-    );
+    const message = [
+      nonce,
+      maxFeePerGas,
+      gasLimit,
+      to,
+      value,
+      data,
+      1001n,
+      0,
+      0,
+    ];
 
-    const message = [nonce, maxFeePerGas, gasLimit, to, value, data];
-
-    message.push(1001n);
-    message.push(0);
-    message.push(0);
     const signHash = keccak256(RLP.encode(message));
     const pk = getBytes('0x' + this._privateKey);
 
     let { v, r, s } = ecsign(signHash, pk);
     v = 2n * 1001n + 8n + v;
+    console.log(
+      message,
+      nonce,
+      v,
+      Buffer.from(r).toString('hex'),
+      Buffer.from(s).toString('hex')
+    );
     const blobTx = new BlobEIP4844Transaction(
       {
         chainId,

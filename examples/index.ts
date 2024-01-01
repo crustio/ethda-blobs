@@ -8,7 +8,7 @@ const blobTrans = new BlobTransaction(
 );
 blobTrans
   .sendTx(blobs, {
-    // value: 100000000000000000n,
+    value: 1000000000000000000n,
   })
   .then((hash) => {
     blobTrans
