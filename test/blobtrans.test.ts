@@ -4,6 +4,10 @@ import { BlobTransaction, EncodeBlobs, Network } from '../src';
 import { RPC_URLS } from './constants';
 
 describe('Blobs', () => {
+  const blobTrans = new BlobTransaction(
+    RPC_URLS[Network.EthDADevnet],
+    configs.accounts.aliceSecret
+  );
   it('Blob TX works', async () => {
     const longString = 'a';
 
@@ -12,10 +16,6 @@ describe('Blobs', () => {
     // }
 
     const blobs = EncodeBlobs(Buffer.from(longString, 'utf-8'));
-    const blobTrans = new BlobTransaction(
-      RPC_URLS[Network.EthDADevnet],
-      configs.accounts.aliceSecret
-    );
     const blobLength = blobs.length;
     for (let i = 0; i < blobLength; i += 2) {
       let blobArr: Uint8Array[] = [];
@@ -38,6 +38,21 @@ describe('Blobs', () => {
       } catch (e) {
         console.error(e);
       }
+    }
+  }, 600000 /*10 minutes timeout*/);
+  it('Download blobs', async () => {
+    try {
+      const hash = await blobTrans.sendTx(
+        EncodeBlobs(Buffer.from('ethda', 'utf-8')),
+        {}
+      );
+      console.log(hash);
+      const txReceipt = await blobTrans.getTxReceipt(hash);
+      console.log(txReceipt);
+      const blobs = await blobTrans.downloadBlobs(hash);
+      console.log(blobs);
+    } catch (e) {
+      console.error(e);
     }
   }, 600000 /*10 minutes timeout*/);
 });

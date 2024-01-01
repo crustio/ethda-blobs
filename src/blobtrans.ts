@@ -280,6 +280,15 @@ export class BlobTransaction {
     return txReceipt;
   }
 
+  async downloadBlobs(txHash) {
+    const tx = await this.sendRpcCall('eth_getTransactionByHash', [txHash]);
+
+    return {
+      blob_hashes: tx?.blob_hashes,
+      sidecar: tx?.sidecar,
+    };
+  }
+
   getBlobHash(blob) {
     const commit = blobToKzgCommitment(blob);
     const localHash = commitmentsToVersionedHashes(commit);

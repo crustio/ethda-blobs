@@ -7,9 +7,7 @@ const blobTrans = new BlobTransaction(
   process.env['KEY']
 );
 blobTrans
-  .sendTx(blobs, {
-    value: 1000000000000000000n,
-  })
+  .sendTx(blobs, {})
   .then((hash) => {
     blobTrans
       .getTxReceipt(hash)
