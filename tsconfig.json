@@ -2,9 +2,6 @@
   // see https://www.typescriptlang.org/tsconfig to better understand tsconfigs
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "compilerOptions": {
-    "paths": {
-      "@/*": ["./*"]
-    },
     "target": "ESNext",
     "module": "ESNext",
     "lib": ["dom", "ESNext"],
@@ -22,6 +19,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
+    "noEmit": true
   }
 }

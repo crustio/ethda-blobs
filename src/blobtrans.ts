@@ -1,20 +1,24 @@
 import { resolve } from 'path';
-import { ethers } from 'ethers';
+import { constants, ethers } from 'ethers';
 import {
-  loadTrustedSetup,
   blobToKzgCommitment,
   computeBlobKzgProof,
+  loadTrustedSetup,
 } from 'c-kzg';
 import { Common } from '@ethereumjs/common';
-import { BlobEIP4844Transaction } from '@ethereumjs/tx';
+import { BlobEIP4844Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import {
-  delay,
   commitmentsToVersionedHashes,
-  parseBigintValue,
+  delay,
   getBytes,
-} from '@/src/utils';
+  parseBigintValue,
+} from './utils';
 
 import defaultAxios from 'axios';
+import { keccak256 } from 'ethereum-cryptography/keccak';
+import { RLP } from '@ethereumjs/rlp';
+import { ecsign } from '@ethereumjs/util';
+
 const axios = defaultAxios.create({
   timeout: 30000,
 });
@@ -33,6 +37,7 @@ export class BlobTransaction {
     this._wallet = new ethers.Wallet(privateKey, this._provider);
 
     const SETUP_FILE_PATH = resolve(__dirname, 'lib', 'trusted_setup.txt');
+    console.log(SETUP_FILE_PATH);
     loadTrustedSetup(SETUP_FILE_PATH);
   }
 
@@ -85,14 +90,17 @@ export class BlobTransaction {
     return await this._provider.getFeeData();
   }
 
+  async suggestGasPrice() {
+    return await this.sendRpcCall('eth_gasPrice', []);
+  }
+
   async estimateGas(params) {
     return await this.sendRpcCall('eth_estimateGas', [params]);
   }
 
-  async sendTx(blobs, tx) {
+  async sanityCheck(tx) {
     const chain = await this.getChainId();
 
-    /* eslint-disable prefer-const */
     let {
       chainId,
       nonce,
@@ -104,8 +112,9 @@ export class BlobTransaction {
       gasLimit,
       maxFeePerBlobGas,
     } = tx;
+
     if (!chainId) {
-      chainId = chain;
+      chainId = parseInt(chain, 16);
     } else {
       chainId = parseBigintValue(chainId);
       if (ethers.utils.isHexString(chainId)) {
@@ -122,33 +131,69 @@ export class BlobTransaction {
 
     value = !value ? '0x0' : parseBigintValue(value);
 
-    if (!gasLimit) {
+    if (!maxFeePerGas) {
       const params = { from: this._wallet.address, to, data, value };
-      gasLimit = await this.estimateGas(params);
-      if (!gasLimit) {
+      // gasLimit = await this.estimateGas(params);
+      maxFeePerGas = await this.suggestGasPrice();
+      if (!maxFeePerGas) {
         throw Error('estimateGas: execution reverted');
       }
     } else {
-      gasLimit = parseBigintValue(gasLimit);
+      maxFeePerGas = parseBigintValue(maxFeePerGas);
     }
 
-    if (!maxFeePerGas) {
-      const fee = await this.getFee();
-      maxPriorityFeePerGas = fee.maxPriorityFeePerGas.toHexString();
-      maxFeePerGas = fee.maxFeePerGas.toHexString();
-      console.log(
-        fee.maxFeePerGas.toString(),
-        fee.maxPriorityFeePerGas.toString()
-      );
-    } else {
-      maxFeePerGas = parseBigintValue(maxFeePerGas);
-      maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas);
-    }
+    // if (!maxFeePerGas) {
+    //   const fee = await this.getFee();
+    //   maxPriorityFeePerGas = fee.maxPriorityFeePerGas.toHexString();
+    //   maxFeePerGas = fee.maxFeePerGas.toHexString();
+    //   console.log(
+    //     fee.maxFeePerGas.toString(),
+    //     fee.maxPriorityFeePerGas.toString()
+    //   );
+    // } else {
+    //   maxFeePerGas = parseBigintValue(maxFeePerGas);
+    //   maxPriorityFeePerGas = parseBigintValue(maxPriorityFeePerGas);
+    // }
 
     // TODO
     maxFeePerBlobGas = !maxFeePerBlobGas
       ? 2000_000_000_000
       : parseBigintValue(maxFeePerBlobGas);
+
+    to = to ?? constants.AddressZero;
+
+    gasLimit = 21000;
+
+    data = data ?? '0x';
+
+    maxPriorityFeePerGas = maxPriorityFeePerGas ?? 0;
+
+    return {
+      chainId,
+      nonce,
+      to,
+      value,
+      data,
+      maxPriorityFeePerGas,
+      maxFeePerGas,
+      gasLimit,
+      maxFeePerBlobGas,
+    };
+  }
+
+  async sendTx(blobs, tx) {
+    /* eslint-disable prefer-const */
+    let {
+      chainId,
+      nonce,
+      to,
+      value,
+      data,
+      maxPriorityFeePerGas,
+      maxFeePerGas,
+      gasLimit,
+      maxFeePerBlobGas,
+    } = await this.sanityCheck(tx);
 
     // blobs
     const commitments = [];
@@ -160,41 +205,66 @@ export class BlobTransaction {
       versionedHashes.push(commitmentsToVersionedHashes(commitments[i]));
     }
 
-    // send
     const common = Common.custom(
       {
-        name: 'custom-chain',
+        name: 'ethda',
         networkId: chainId,
         chainId: chainId,
       },
       {
-        baseChain: 1,
         eips: [1559, 3860, 4844],
       }
     );
-    const unsignedTx = new BlobEIP4844Transaction(
+    console.log(chainId);
+
+    // maxFeePerGas = 0x3b9aca00;
+    const unsignedLegacyTx = new LegacyTransaction(
       {
-        chainId,
-        nonce: nonce,
+        nonce,
+        gasPrice: maxFeePerGas,
+        gasLimit,
         to,
         value,
         data,
-        maxPriorityFeePerGas,
+        v: 2002 + 35,
+      },
+      { common }
+    );
+
+    const message = [nonce, maxFeePerGas, gasLimit, to, value, data];
+
+    message.push(1001n);
+    message.push(0);
+    message.push(0);
+    const signHash = keccak256(RLP.encode(message));
+    const pk = getBytes('0x' + this._privateKey);
+
+    let { v, r, s } = ecsign(signHash, pk);
+    v = 2n * 1001n + 8n + v;
+    const blobTx = new BlobEIP4844Transaction(
+      {
+        chainId,
+        nonce,
+        to,
+        value,
+        data,
+        maxPriorityFeePerGas: maxFeePerGas,
         maxFeePerGas,
-        gasLimit: gasLimit,
+        gasLimit,
         maxFeePerBlobGas,
         blobVersionedHashes: versionedHashes,
         blobs,
         kzgCommitments: commitments,
         kzgProofs: proofs,
+        v: v - 2n * 1001n - 35n,
+        r: r,
+        s: s,
       },
       { common }
     );
+    console.log(blobTx);
 
-    const pk = getBytes('0x' + this._privateKey);
-    const signedTx = unsignedTx.sign(pk);
-
-    const rawData = signedTx.serializeNetworkWrapper();
+    const rawData = blobTx.serializeNetworkWrapper();
 
     const hex = Buffer.from(rawData).toString('hex');
     return await this.sendRawTransaction('0x' + hex);

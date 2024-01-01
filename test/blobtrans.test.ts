@@ -1,8 +1,7 @@
 import { describe, it } from '@jest/globals';
-import { configs } from '@/test/configs';
+import { configs } from './configs';
 import { BlobTransaction, EncodeBlobs, Network } from '../src';
-import { ethers } from 'ethers';
-import { RPC_URLS } from '@/test/constants';
+import { RPC_URLS } from './constants';
 
 describe('Blobs', () => {
   it('Blob TX works', async () => {
@@ -30,7 +29,7 @@ describe('Blobs', () => {
         const hash = await blobTrans.sendTx(blobArr, {
           maxPriorityFeePerGas: 7000000000n,
           maxFeePerGas: 7000000020n,
-          value: 100000000000000000n,
+          value: 1000000000000000000n,
           // data: '0x4f2be91f',
           // chainId: 1001,
         });
