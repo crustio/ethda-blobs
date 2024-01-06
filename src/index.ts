@@ -1,4 +1,4 @@
 export * from './types';
-export * from './blobtrans';
+export * from './client';
 export * from './constants';
 export * from './utils';

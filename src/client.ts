@@ -6,101 +6,41 @@ import {
   loadTrustedSetup,
 } from 'c-kzg';
 import { Common } from '@ethereumjs/common';
-import { BlobEIP4844Transaction, LegacyTransaction } from '@ethereumjs/tx';
+import { BlobEIP4844Transaction } from '@ethereumjs/tx';
 import {
   commitmentsToVersionedHashes,
   delay,
   getBytes,
   parseBigintValue,
 } from './utils';
-
-import defaultAxios from 'axios';
+import { TypedDataSigner } from '@ethersproject/abstract-signer';
 import { keccak256 } from 'ethereum-cryptography/keccak';
 import { RLP } from '@ethereumjs/rlp';
 import { ecsign } from '@ethereumjs/util';
 
-const axios = defaultAxios.create({
-  timeout: 30000,
-});
-
-export class BlobTransaction {
-  private _jsonRpc: string;
+export class BlobClient {
   private _provider: ethers.providers.JsonRpcProvider;
-  private _privateKey: string;
-  private _wallet: ethers.Wallet;
-  private _chainId: string;
+  private _signer: ethers.Signer;
 
-  constructor(jsonRpc: string, privateKey: string) {
-    this._jsonRpc = jsonRpc;
-    this._provider = new ethers.providers.JsonRpcProvider(jsonRpc);
-    this._privateKey = privateKey;
-    this._wallet = new ethers.Wallet(privateKey, this._provider);
+  constructor(
+    provider:
+      | (ethers.Signer & TypedDataSigner)
+      | ethers.providers.JsonRpcProvider
+  ) {
+    if (provider instanceof ethers.providers.JsonRpcProvider) {
+      this._provider = provider;
+    } else {
+      this._provider = (provider as ethers.Signer & TypedDataSigner)
+        .provider as ethers.providers.JsonRpcProvider;
+      this._signer = provider;
+    }
 
     const SETUP_FILE_PATH = resolve(__dirname, 'lib', 'trusted_setup.txt');
     console.log(SETUP_FILE_PATH);
     loadTrustedSetup(SETUP_FILE_PATH);
   }
 
-  async sendRpcCall(method, parameters) {
-    let response;
-    try {
-      response = await axios({
-        method: 'POST',
-        url: this._jsonRpc,
-        data: {
-          jsonrpc: '2.0',
-          method: method,
-          params: parameters,
-          id: 67,
-        },
-      });
-    } catch (error) {
-      console.log('send error', error);
-      return null;
-    }
-
-    console.log('send response', response.data);
-    const returnedValue = response.data.result;
-    if (returnedValue === '0x') {
-      return null;
-    }
-    if (response.data.error) {
-      throw new Error(response.data.error);
-    }
-
-    return returnedValue;
-  }
-
-  async sendRawTransaction(param) {
-    return await this.sendRpcCall('eth_sendRawTransaction', [param]);
-  }
-
-  async getChainId() {
-    if (!this._chainId) {
-      this._chainId = await this.sendRpcCall('eth_chainId', []);
-    }
-    return this._chainId;
-  }
-
-  async getNonce() {
-    return await this._wallet.getTransactionCount('pending');
-  }
-
-  async getFee() {
-    return await this._provider.getFeeData();
-  }
-
-  async suggestGasPrice() {
-    return await this.sendRpcCall('eth_gasPrice', []);
-  }
-
-  async estimateGas(params) {
-    return await this.sendRpcCall('eth_estimateGas', [params]);
-  }
-
   async sanityCheck(tx) {
-    const chain = await this.getChainId();
-
     let {
       chainId,
       nonce,
@@ -114,19 +54,11 @@ export class BlobTransaction {
     } = tx;
 
     if (!chainId) {
-      chainId = parseInt(chain, 16);
-    } else {
-      chainId = parseBigintValue(chainId);
-      if (ethers.utils.isHexString(chainId)) {
-        chainId = parseInt(chainId, 16);
-      }
-      if (chainId !== parseInt(chain, 16)) {
-        throw Error('invalid network id');
-      }
+      chainId = (await this._provider.getNetwork()).chainId;
     }
 
     if (!nonce) {
-      nonce = await this.getNonce();
+      nonce = await this._signer.getTransactionCount();
     }
 
     value = !value ? '0x' : parseBigintValue(value);
@@ -220,8 +152,7 @@ export class BlobTransaction {
     ];
 
     const signHash = keccak256(RLP.encode(message));
-    const pk = getBytes('0x' + this._privateKey);
-
+    const pk = getBytes((this._signer as ethers.Wallet).privateKey);
     let { v, r, s } = ecsign(signHash, pk);
     v = 2n * 1001n + 8n + v;
     console.log(
@@ -257,7 +188,7 @@ export class BlobTransaction {
     const rawData = blobTx.serializeNetworkWrapper();
 
     const hex = Buffer.from(rawData).toString('hex');
-    return await this.sendRawTransaction('0x' + hex);
+    return await this._provider.send('eth_sendRawTransaction', ['0x' + hex]);
   }
 
   async isTransactionMined(transactionHash) {
@@ -281,7 +212,7 @@ export class BlobTransaction {
   }
 
   async downloadBlobs(txHash) {
-    const tx = await this.sendRpcCall('eth_getTransactionByHash', [txHash]);
+    const tx = await this._provider.send('eth_getTransactionByHash', [txHash]);
 
     return {
       blob_hashes: tx?.blob_hashes,

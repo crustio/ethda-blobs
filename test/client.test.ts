@@ -1,12 +1,15 @@
 import { describe, it } from '@jest/globals';
 import { configs } from './configs';
-import { BlobTransaction, EncodeBlobs, Network } from '../src';
+import { BlobClient, EncodeBlobs, Network } from '../src';
 import { RPC_URLS } from './constants';
+import { ethers } from 'ethers';
 
 describe('Blobs', () => {
-  const blobTrans = new BlobTransaction(
-    RPC_URLS[Network.EthDADevnet],
-    configs.accounts.aliceSecret
+  const provider = new ethers.providers.JsonRpcProvider(
+    RPC_URLS[Network.EthDADevnet]
+  );
+  const blobTrans = new BlobClient(
+    new ethers.Wallet(configs.accounts.aliceSecret, provider)
   );
   it('Blob TX works', async () => {
     const longString = 'a';

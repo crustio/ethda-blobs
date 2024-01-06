@@ -6,22 +6,26 @@ npm install @ethda/blobs
 ```
 
 ## Upload blobs
+
 ```typescript
-import { BlobTransaction, EncodeBlobs } from '@ethda/blobs';
+import {BlobClient, EncodeBlobs} from '@ethda/blobs';
+import {ethers} from "ethers";
 
 const content = 'abc....';
 const blobs = EncodeBlobs(Buffer.from(content, 'utf-8'));
-const blobTrans = new BlobTransaction('https://rpc.ethda.io', '<private_key>');
-const hash = await blobTrans.sendTx(blobs)
-const receipt = await blobTrans.getTxReceipt(hash)
+
+const signer = new ethers.Wallet('<private_key>', new ethers.providers.JsonRpcProvider("https://rpc.ethda.io"));
+const blobClient = new BlobClient(signer);
+const hash = await blobClient.sendTx(blobs)
+const receipt = await blobClient.getTxReceipt(hash)
 ```
 
 ## Download blobs
 ```typescript
-import { BlobTransaction, EncodeBlobs } from '@ethda/blobs';
+import { BlobClient, EncodeBlobs } from '@ethda/blobs';
 
 const txHash = '...';
-const blobTrans = new BlobTransaction('https://rpc.ethda.io', '<private_key>');
+const blobClient = new BlobClient(new ethers.providers.JsonRpcProvider("https://rpc.ethda.io"));
 const result = await blobTrans.downloadBlobs(txHash)
 /**
 **  result: {
