@@ -14,7 +14,7 @@ import {ethers} from "ethers";
 const content = 'abc....';
 const blobs = EncodeBlobs(Buffer.from(content, 'utf-8'));
 
-const signer = new ethers.Wallet('<private_key>', new ethers.providers.JsonRpcProvider("https://rpc.ethda.io"));
+const signer = new ethers.Wallet('<private_key>', new ethers.providers.JsonRpcProvider("https://rpc-testnet.ethda.io"));
 const blobClient = new BlobClient(signer);
 const hash = await blobClient.sendTx(blobs)
 const receipt = await blobClient.getTxReceipt(hash)
@@ -25,7 +25,7 @@ const receipt = await blobClient.getTxReceipt(hash)
 import { BlobClient, EncodeBlobs } from '@ethda/blobs';
 
 const txHash = '...';
-const blobClient = new BlobClient(new ethers.providers.JsonRpcProvider("https://rpc.ethda.io"));
+const blobClient = new BlobClient(new ethers.providers.JsonRpcProvider("https://rpc-testnet.ethda.io"));
 const result = await blobTrans.downloadBlobs(txHash)
 /**
 **  result: {
