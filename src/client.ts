@@ -18,6 +18,9 @@ import { keccak256 } from 'ethereum-cryptography/keccak';
 import { RLP } from '@ethereumjs/rlp';
 import { ecsign } from '@ethereumjs/util';
 
+export const TESTNET_ID = 2832n;
+export const BlobTxBlobGasPerBlob = 1 << 17;
+
 export class BlobClient {
   private _provider: ethers.providers.JsonRpcProvider;
   private _signer: ethers.Signer;
@@ -41,81 +44,50 @@ export class BlobClient {
   }
 
   async sanityCheck(tx) {
-    let {
-      chainId,
-      nonce,
-      to,
-      value,
-      data,
-      maxPriorityFeePerGas,
-      maxFeePerGas,
-      gasLimit,
-      maxFeePerBlobGas,
-    } = tx;
+    let { chainId, nonce, data, maxFeePerBlobGas } = tx;
 
+    console.log(chainId);
     if (!chainId) {
       chainId = (await this._provider.getNetwork()).chainId;
+      console.log(chainId);
     }
 
     if (!nonce) {
       nonce = await this._signer.getTransactionCount();
     }
 
-    value = !value ? '0x' : parseBigintValue(value);
-
-    // if (!maxFeePerGas) {
-    //   const params = { from: this._wallet.address, to, data, value };
-    //   // gasLimit = await this.estimateGas(params);
-    //   maxFeePerGas = await this.suggestGasPrice();
-    //   if (!maxFeePerGas) {
-    //     throw Error('estimateGas: execution reverted');
-    //   }
-    // } else {
-    //   maxFeePerGas = parseBigintValue(maxFeePerGas);
-    // }
-
-    maxFeePerGas = 1000000000n;
+    const { gasPrice } = await this._provider.getFeeData();
+    console.log(data);
+    if (!gasPrice) {
+      throw Error('estimateGas: execution reverted');
+    }
 
     // TODO
     maxFeePerBlobGas = !maxFeePerBlobGas
-      ? 2000_000_000_000
+      ? 1_000_000_000n
       : parseBigintValue(maxFeePerBlobGas);
 
-    to = to ?? constants.AddressZero;
-
-    gasLimit = 21000;
-
     data = data ?? '0x';
-
-    maxPriorityFeePerGas = maxPriorityFeePerGas ?? 0;
 
     return {
       chainId,
       nonce,
-      to,
-      value,
+      to: '0x975ef84AE286F95a9F732C30267Bb50D103b4374',
+      value: maxFeePerBlobGas,
       data,
-      maxPriorityFeePerGas,
-      maxFeePerGas,
-      gasLimit,
+      maxPriorityFeePerGas: BigInt(gasPrice.toString()),
+      maxFeePerGas: BigInt(gasPrice.toString()),
+      gasLimit: 21000,
       maxFeePerBlobGas,
     };
   }
 
   async sendTx(blobs, tx) {
     console.log('receive', tx);
+    console.log(this._signer.getAddress());
     /* eslint-disable prefer-const */
-    let {
-      chainId,
-      nonce,
-      to,
-      value,
-      data,
-      maxPriorityFeePerGas,
-      maxFeePerGas,
-      gasLimit,
-      maxFeePerBlobGas,
-    } = await this.sanityCheck(tx);
+    let { chainId, nonce, to, data, maxFeePerGas, gasLimit, maxFeePerBlobGas } =
+      await this.sanityCheck(tx);
 
     // blobs
     const commitments = [];
@@ -126,6 +98,9 @@ export class BlobClient {
       proofs.push(computeBlobKzgProof(blobs[i], commitments[i]));
       versionedHashes.push(commitmentsToVersionedHashes(commitments[i]));
     }
+
+    const value =
+      BigInt(blobs.length * BlobTxBlobGasPerBlob) * maxFeePerBlobGas * 2n;
 
     const common = Common.custom(
       {
@@ -146,7 +121,7 @@ export class BlobClient {
       to,
       value,
       data,
-      1001n,
+      TESTNET_ID,
       0,
       0,
     ];
@@ -154,7 +129,7 @@ export class BlobClient {
     const signHash = keccak256(RLP.encode(message));
     const pk = getBytes((this._signer as ethers.Wallet).privateKey);
     let { v, r, s } = ecsign(signHash, pk);
-    v = 2n * 1001n + 8n + v;
+    v = 2n * TESTNET_ID + 8n + v;
     console.log(
       message,
       nonce,
@@ -177,7 +152,7 @@ export class BlobClient {
         blobs,
         kzgCommitments: commitments,
         kzgProofs: proofs,
-        v: v - 2n * 1001n - 35n,
+        v: v - 2n * TESTNET_ID - 35n,
         r: r,
         s: s,
       },

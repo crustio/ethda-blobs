@@ -8,6 +8,7 @@ describe('Blobs', () => {
   const provider = new ethers.providers.JsonRpcProvider(
     RPC_URLS[Network.EthDADevnet]
   );
+  console.log(provider, RPC_URLS[Network.EthDADevnet]);
   const blobTrans = new BlobClient(
     new ethers.Wallet(configs.accounts.aliceSecret, provider)
   );
