@@ -19,8 +19,7 @@ const getNetwork = (): Network => {
 export const configs = {
   network: getNetwork(),
   accounts: {
-    aliceSecret:
-      '0e9d91324bd432c21a2593ea904fa07bdbe747fa13a7ebc88d3bdd9ba2986c41',
+    aliceSecret: getEnv('ALICE_SECRET', ''),
     bobSecret: getEnv('BOB_SECRET', ''),
   },
 };
