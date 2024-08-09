@@ -69,15 +69,17 @@ export class BlobClient {
 
     data = data ?? '0x';
 
+    const gasOffset = 1000;
+
     return {
       chainId,
       nonce,
-      to: '0x975ef84AE286F95a9F732C30267Bb50D103b4374',
+      to: '0x3318d37C7160dC5582946C80765A61Daa20ff755',
       value: maxFeePerBlobGas,
       data,
       maxPriorityFeePerGas: BigInt(gasPrice.toString()),
       maxFeePerGas: BigInt(gasPrice.toString()),
-      gasLimit: 21000,
+      gasLimit: 21000 + gasOffset,
       maxFeePerBlobGas,
     };
   }
@@ -100,7 +102,7 @@ export class BlobClient {
     }
 
     const value =
-      BigInt(blobs.length * BlobTxBlobGasPerBlob) * maxFeePerBlobGas * 2n;
+      BigInt(blobs.length * BlobTxBlobGasPerBlob) * maxFeePerBlobGas * 5n;
 
     const common = Common.custom(
       {
